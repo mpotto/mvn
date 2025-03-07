@@ -1,0 +1,23 @@
+[project]
+name = "mvn"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "Mateus Piovezan Otto", email = "24721174+mpotto@users.noreply.github.com" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "matplotlib>=3.10.1",
+    "numpy>=2.2.3",
+    "pandas>=2.2.3",
+    "statsmodels>=0.14.4",
+    "tqdm>=4.67.1",
+]
+
+[project.scripts]
+mvn = "mvn:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
