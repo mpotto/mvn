@@ -16,7 +16,7 @@ def estimate_beta(Y, covariates, Sigma_inv, Delta_inv):
     estimates = torch.linalg.solve(A, -b)
     return estimates
 
-def iterative_estimation(Y, covariates, max_iter=10**3, row_rho=1, col_rho=1, abs_tol=1e-8):
+def iterative_estimation(Y, covariates, max_iter=10**3, row_rho=1, col_rho=1, abs_tol=1e-5):
     m, n = Y.shape 
     p = len(covariates)
     Sigma_inv = torch.eye(m, dtype=torch.float64)
