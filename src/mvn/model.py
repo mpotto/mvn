@@ -1,5 +1,6 @@
 
 import torch
+import numpy as np
 
 from mvn.covariance import l2_regularized_covariance_estimation
 
@@ -13,7 +14,7 @@ def estimate_beta(Y, covariates, Sigma_inv, Delta_inv):
     ell = lambda beta: log_likelihood(Y, covariates, beta, Sigma_inv, Delta_inv)
     A = torch.autograd.functional.hessian(ell, torch.zeros(p))
     b = torch.autograd.functional.jacobian(ell, torch.zeros(p))
-    estimates = torch.linalg.solve(A, -b)
+    estimates = torch.linalg.lstsq(A, -b)[0]
     return estimates
 
 def iterative_estimation(Y, covariates, max_iter=10**3, row_rho=1, col_rho=1, abs_tol=1e-5):
