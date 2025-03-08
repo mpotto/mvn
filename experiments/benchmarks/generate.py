@@ -2,6 +2,7 @@ import copy
 import json
 import itertools
 import warnings
+from joblib import Parallel, delayed
 from pathlib import Path
 
 import numpy as np
@@ -9,7 +10,6 @@ import pandas as pd
 import statsmodels.api as sm
 import statsmodels.formula.api as smf
 from statsmodels.regression.mixed_linear_model import MixedLM
-from statsmodels.genmod.cov_struct import Unstructured
 from statsmodels.tools.sm_exceptions import ConvergenceWarning, IterationLimitWarning
 from tqdm import tqdm
 
@@ -48,16 +48,15 @@ def generate_data(exp_name, config):
             m, n, beta_true, theta=config["theta"], seed=0, generator=generator_seed
         )
     elif exp_name == "correlated-homoscedastic":
-        Y, covariates = generate_doubly_correlated_homoscedastic(
+        Y, covariates, _, _ = generate_doubly_correlated_homoscedastic(
             m,
             n,
             beta_true,
             col_corr=config["col_corr"],
             col_var=config["col_var"],
             row_var=config["row_var"],
-            col_rho=config["col_rho"],
-            row_rho=config["row_rho"],
-            seed=generator_seed,
+            seed=0,
+            generator=generator_seed
         )
     elif exp_name == "correlated-heteroscedastic":
         Y, covariates, _, _ = generate_doubly_correlated_heteroscedastic(
@@ -68,9 +67,8 @@ def generate_data(exp_name, config):
             row_corr=config["row_corr"],
             max_col_var=config["max_col_var"],
             max_row_var=config["max_row_var"],
-            col_rho=config["col_rho"],
-            row_rho=config["row_rho"],
-            seed=generator_seed,
+            seed=0,
+            generator=generator_seed
         )
     elif exp_name == "correlated-heteroscedastic-mixed-covariates":
         Y, covariates, _, _ = generate_doubly_correlated_heteroscedastic_mixed(
@@ -81,9 +79,8 @@ def generate_data(exp_name, config):
             row_corr=config["row_corr"],
             max_col_var=config["max_col_var"],
             max_row_var=config["max_row_var"],
-            col_rho=config["col_rho"],
-            row_rho=config["row_rho"],
-            seed=generator_seed,
+            seed=0,
+            generator=generator_seed
         )
 
     return Y, covariates, beta_true
@@ -93,15 +90,15 @@ def convert_to_df(Y, covariates):
     m, n = Y.shape
     df = pd.DataFrame(
         {
-            "subject": np.repeat(np.arange(m), n),  # Subject IDs repeated n times
+            "subject": np.repeat(np.arange(m), n), 
             "time": np.tile(
                 np.arange(n), m
-            ),  # Time points (0,1,...,n-1) repeated for each subject
-            "y": Y.flatten(),  # Flattened response observations
+            ),  
+            "y": Y.flatten(), 
         }
     )
     for i, X in enumerate(covariates[1:]):
-        df[f"x{i+1}"] = X.flatten()  # Flatten each matrix and store
+        df[f"x{i+1}"] = X.flatten()
     return df
 
 
@@ -160,16 +157,42 @@ def fit_gee(df, config):
     p = config["p"]
     df["time"] = df["time"].astype("int")
     fam = sm.families.Gaussian()
-    unstr = Unstructured()
+    ind = sm.cov_struct.Exchangeable()
     covariate_terms = " + ".join([f"x{i+1}" for i in range(0, p - 1)])
     formula = f"y ~ {covariate_terms}"
-    model = smf.gee(formula, "subject", df, cov_struct=unstr, family=fam, time=df["time"])
+    model = smf.gee(formula, "subject", df, cov_struct=ind, family=fam, time=df["time"])
     result = model.fit()
     return result.params.to_numpy().tolist()
 
+def run_experiment(exp_name, exp, n_replicates=50):
+
+    results = copy.deepcopy(results_template)
+    results.update({k: exp[k] for k in exp})
+
+    output_path = generate_output_path(exp_name, exp)
+    if output_path.exists():
+        return
+    for r in tqdm(range(n_replicates)):
+        exp["seed"] = r
+
+        Y, covariates, beta_true = generate_data(exp_name, exp)
+        df = convert_to_df(Y, covariates)
+        beta_mvn = fit_mvn(Y, covariates, exp)
+        beta_base_lmm = fit_base_lmm(df, exp)
+        beta_vc_lmm = fit_vc_lmm(df, exp)
+        beta_gee = fit_gee(df, exp)
+        results["estimates_mvn"].append(beta_mvn)
+        results["estimates_base_lmm"].append(beta_base_lmm)
+        results["estimates_vc_lmm"].append(beta_vc_lmm)
+        results["estimates_gee"].append(beta_gee)
+        results["seed"].append(r)
+
+    results["beta_true"].append(beta_true.tolist())
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(output_path, "w") as fp:
+        json.dump(results, fp, indent=4)
 
 def main():
-    n_replicates = 1
     with open("experiments/benchmarks/config.json", "r") as file:
         full_experiment_config = json.load(file)
 
@@ -183,32 +206,8 @@ def main():
             for values in itertools.product(*list_values)
         ]
 
-        for exp in tqdm(experiments):
-            results = copy.deepcopy(results_template)
-            results.update({k: exp[k] for k in exp})
-            output_path = generate_output_path(exp_name, exp)
-            if output_path.exists():
-                continue
-            for r in range(n_replicates):
-                exp["seed"] = r
-
-                Y, covariates, beta_true = generate_data(exp_name, exp)
-                df = convert_to_df(Y, covariates)
-                beta_mvn = fit_mvn(Y, covariates, exp)
-                beta_base_lmm = fit_base_lmm(df, exp)
-                beta_vc_lmm = fit_vc_lmm(df, exp)
-                beta_gee = fit_gee(df, exp)
-                results["estimates_mvn"].append(beta_mvn)
-                results["estimates_base_lmm"].append(beta_base_lmm)
-                results["estimates_vc_lmm"].append(beta_vc_lmm)
-                results["estimates_gee"].append(beta_gee)
-                results["seed"].append(r)
-
-            results["beta_true"].append(beta_true.tolist())
-            output_path.parent.mkdir(parents=True, exist_ok=True)
-            with open(output_path, "w") as fp:
-                json.dump(results, fp, indent=4)
-
-
+        Parallel(n_jobs=5)(delayed(run_experiment)(exp_name, exp) for exp in experiments)
+            
+        
 if __name__ == "__main__":
     main()
