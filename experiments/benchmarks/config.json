@@ -1,16 +1,16 @@
 {
     "random-intercept": {
-        "m": [20, 50, 100],
-        "n": [20, 50],
-        "p": [2, 5, 10],
-        "col_rho": [1e-3, 1, 10],
-        "row_rho": [1e-3, 1, 10],
+        "m": [20, 100],
+        "n": [20, 100],
+        "p": [10],
+        "col_rho": [1e-3, 1],
+        "row_rho": [1e-3, 1],
         "theta": [5]
     },
     "correlated-homoscedastic": {
-        "m": [20, 50, 100],
-        "n": [20, 50],
-        "p": [2, 5, 10],
+        "m": [20, 100],
+        "n": [20, 100],
+        "p": [10],
         "col_corr": [0.1, 0.5, 0.999],
         "row_corr": [0.5, 0.999],
         "col_rho": [1e-3, 1],
@@ -19,24 +19,24 @@
         "row_var": [1]
     },
     "correlated-heteroscedastic": {
-        "m": [10, 50, 100],
-        "n": [20, 50],
-        "p": [2, 5, 10],
+        "m": [20, 100],
+        "n": [20, 100],
+        "p": [10],
         "col_corr": [0.1, 0.5, 0.999],
         "row_corr": [0.5, 0.999],
-        "col_rho": [1e-3, 1, 10],
-        "row_rho": [1e-3, 1, 10],
+        "col_rho": [1, 10],
+        "row_rho": [1, 10],
         "max_col_var": [5],
         "max_row_var": [5]
     },
     "correlated-heteroscedastic-mixed-covariates": {
-        "m": [20, 50, 100],
-        "n": [20, 50],
-        "p": [2, 5, 10],
+        "m": [20, 100],
+        "n": [20, 100],
+        "p": [10],
         "col_corr": [0.1, 0.5, 0.999],
         "row_corr": [0.5, 0.999],
-        "col_rho": [1e-3, 1, 10],
-        "row_rho": [1e-3, 1, 10],
+        "col_rho": [1, 10],
+        "row_rho": [1, 10],
         "max_col_var": [5],
         "max_row_var": [5]
     }
