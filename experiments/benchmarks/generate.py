@@ -2,16 +2,17 @@ import copy
 import json
 import itertools
 import warnings
-from joblib import Parallel, delayed
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 import statsmodels.api as sm
 import statsmodels.formula.api as smf
+from joblib import Parallel, delayed
 from statsmodels.regression.mixed_linear_model import MixedLM
 from statsmodels.tools.sm_exceptions import ConvergenceWarning, IterationLimitWarning
 from tqdm import tqdm
+from torch.linalg import LinAlgError
 
 from mvn.data import (
     generate_random_intercept,
@@ -34,6 +35,7 @@ results_template = {
     "estimates_vc_lmm": [],
     "estimates_gee": [],
     "seed": [],
+    "error": ""
 }
 
 
@@ -109,7 +111,7 @@ def generate_output_path(exp_name, config):
         )
     elif exp_name == "correlated-homoscedastic":
         output_path = Path(
-            f"eval/benchmarks/{exp_name}_{config["m"]}_{config["n"]}_{config["p"]}_{config["col_rho"]}_{config["row_rho"]}_{config["col_corr"]}_{config["col_var"]}_{config["row_var"]}.json"
+            f"eval/benchmarks/{exp_name}_{config['m']}_{config['n']}_{config['p']}_{config['col_rho']}_{config['row_rho']}_{config['col_corr']}_{config['row_corr']}_{config['col_var']}_{config['row_var']}.json"
         )
     elif exp_name in [
         "correlated-heteroscedastic",
@@ -177,15 +179,21 @@ def run_experiment(exp_name, exp, n_replicates=50):
 
         Y, covariates, beta_true = generate_data(exp_name, exp)
         df = convert_to_df(Y, covariates)
-        beta_mvn = fit_mvn(Y, covariates, exp)
-        beta_base_lmm = fit_base_lmm(df, exp)
-        beta_vc_lmm = fit_vc_lmm(df, exp)
-        beta_gee = fit_gee(df, exp)
-        results["estimates_mvn"].append(beta_mvn)
-        results["estimates_base_lmm"].append(beta_base_lmm)
-        results["estimates_vc_lmm"].append(beta_vc_lmm)
-        results["estimates_gee"].append(beta_gee)
-        results["seed"].append(r)
+        try:
+            beta_mvn = fit_mvn(Y, covariates, exp)
+        except LinAlgError:
+            results["error"] = "LinAlg"
+            continue
+        else:
+            beta_base_lmm = fit_base_lmm(df, exp)
+            beta_vc_lmm = fit_vc_lmm(df, exp)
+            beta_gee = fit_gee(df, exp)
+            results["estimates_mvn"].append(beta_mvn)
+            results["estimates_base_lmm"].append(beta_base_lmm)
+            results["estimates_vc_lmm"].append(beta_vc_lmm)
+            results["estimates_gee"].append(beta_gee)
+        finally:
+            results["seed"].append(r)
 
     results["beta_true"].append(beta_true.tolist())
     output_path.parent.mkdir(parents=True, exist_ok=True)
