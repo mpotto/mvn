@@ -40,8 +40,9 @@ results_template = {
 
 
 def generate_data(exp_name, config):
-    m, n = config["m"], config["n"]
+    m, n = config["mn"]
     p = config["p"]
+    
     beta_true = np.linspace(-5, 5, p)
     generator_seed = config["seed"]
     if exp_name == "random-intercept":
@@ -50,37 +51,44 @@ def generate_data(exp_name, config):
             m, n, beta_true, theta=config["theta"], seed=0, generator=generator_seed
         )
     elif exp_name == "correlated-homoscedastic":
+        col_corr, row_corr = config["corr"]
+        col_var, row_var = config["var"]
         Y, covariates, _, _ = generate_doubly_correlated_homoscedastic(
             m,
             n,
             beta_true,
-            col_corr=config["col_corr"],
-            col_var=config["col_var"],
-            row_var=config["row_var"],
+            col_corr=col_corr,
+            row_corr=row_corr,
+            col_var=col_var,
+            row_var=row_var,
             seed=0,
             generator=generator_seed
         )
     elif exp_name == "correlated-heteroscedastic":
+        col_corr, row_corr = config["corr"]
+        max_col_var, max_row_var = config["max_var"]
         Y, covariates, _, _ = generate_doubly_correlated_heteroscedastic(
             m,
             n,
             beta_true,
-            col_corr=config["col_corr"],
-            row_corr=config["row_corr"],
-            max_col_var=config["max_col_var"],
-            max_row_var=config["max_row_var"],
+            col_corr=col_corr,
+            row_corr=row_corr,
+            max_col_var=max_col_var,
+            max_row_var=max_row_var,
             seed=0,
             generator=generator_seed
         )
     elif exp_name == "correlated-heteroscedastic-mixed-covariates":
+        col_corr, row_corr = config["corr"]
+        max_col_var, max_row_var = config["max_var"]
         Y, covariates, _, _ = generate_doubly_correlated_heteroscedastic_mixed(
             m,
             n,
             beta_true,
-            col_corr=config["col_corr"],
-            row_corr=config["row_corr"],
-            max_col_var=config["max_col_var"],
-            max_row_var=config["max_row_var"],
+            col_corr=col_corr,
+            row_corr=row_corr,
+            max_col_var=max_col_var,
+            max_row_var=max_row_var,
             seed=0,
             generator=generator_seed
         )
@@ -103,34 +111,43 @@ def convert_to_df(Y, covariates):
         df[f"x{i+1}"] = X.flatten()
     return df
 
-
 def generate_output_path(exp_name, config):
+    m, n = config["mn"]
+    p = config["p"]
+    col_rho, row_rho = config["rho"]
+
     if exp_name == "random-intercept":
+        theta = config["theta"]
         output_path = Path(
-            f"eval/benchmarks/{exp_name}_{config["m"]}_{config["n"]}_{config["p"]}_{config["col_rho"]}_{config["row_rho"]}_{config["theta"]}.json"
+            f"eval/benchmarks/{exp_name}_{m}_{n}_{p}_{row_rho}_{col_rho}_{theta}.json"
         )
     elif exp_name == "correlated-homoscedastic":
+        col_corr, row_corr = config["corr"]
+        col_var, row_var = config["var"]
         output_path = Path(
-            f"eval/benchmarks/{exp_name}_{config['m']}_{config['n']}_{config['p']}_{config['col_rho']}_{config['row_rho']}_{config['col_corr']}_{config['row_corr']}_{config['col_var']}_{config['row_var']}.json"
+            f"eval/benchmarks/{exp_name}_{m}_{n}_{p}_{row_rho}_{col_rho}_{col_corr}_{row_corr}_{col_var}_{row_var}.json"
         )
     elif exp_name in [
         "correlated-heteroscedastic",
         "correlated-heteroscedastic-mixed-covariates",
     ]:
+        col_corr, row_corr = config["corr"]
+        max_col_var, max_row_var = config["max_var"]
         output_path = Path(
-            f"eval/benchmarks/{exp_name}_{config['m']}_{config['n']}_{config['p']}_{config['col_rho']}_{config['row_rho']}_{config['col_corr']}_{config['row_corr']}_{config['max_col_var']}_{config['max_row_var']}.json"
+            f"eval/benchmarks/{exp_name}_{m}_{n}_{p}_{row_rho}_{col_rho}_{col_corr}_{row_corr}_{max_col_var}_{max_row_var}.json"
         )
     return output_path
 
 
 def fit_mvn(Y, covariates, config):
     Y, covariates = check_arrays(Y, covariates)
+    col_rho, row_rho = config["corr"]
     beta_mvn, _, _ = iterative_estimation(
         Y,
         covariates,
         max_iter=10**3,
-        row_rho=config["row_rho"],
-        col_rho=config["col_rho"],
+        row_rho=row_rho,
+        col_rho=col_rho,
     )
     return beta_mvn.detach().numpy().tolist()
 
@@ -166,7 +183,7 @@ def fit_gee(df, config):
     result = model.fit()
     return result.params.to_numpy().tolist()
 
-def run_experiment(exp_name, exp, n_replicates=50):
+def run_experiment(exp_name, exp, n_replicates=100):
 
     results = copy.deepcopy(results_template)
     results.update({k: exp[k] for k in exp})
@@ -201,7 +218,7 @@ def run_experiment(exp_name, exp, n_replicates=50):
         json.dump(results, fp, indent=4)
 
 def main():
-    with open("experiments/benchmarks/config.json", "r") as file:
+    with open("experiments/benchmarks/config1.json", "r") as file:
         full_experiment_config = json.load(file)
 
     for exp_name in full_experiment_config:
@@ -214,7 +231,7 @@ def main():
             for values in itertools.product(*list_values)
         ]
 
-        Parallel(n_jobs=5)(delayed(run_experiment)(exp_name, exp) for exp in experiments)
+        Parallel(n_jobs=10)(delayed(run_experiment)(exp_name, exp) for exp in experiments)
             
         
 if __name__ == "__main__":
