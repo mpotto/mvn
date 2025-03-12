@@ -10,8 +10,9 @@ requires-python = ">=3.12"
 dependencies = [
     "joblib>=1.4.2",
     "matplotlib>=3.10.1",
-    "numpy>=2.2.3",
+    "numba>=0.61.0",
     "pandas>=2.2.3",
+    "seaborn>=0.13.2",
     "statsmodels>=0.14.4",
     "tqdm>=4.67.1",
 ]
